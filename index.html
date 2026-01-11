@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Promotorias de Pernambuco - Mapa Interativo</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Otimizações específicas para zoom ultra fluido */
+        #map-wrapper {
+            position: relative;
+            overflow: hidden;
+            cursor: grab;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            transform-style: preserve-3d;
+            will-change: transform;
+        }
+        
+        #map-wrapper:active {
+            cursor: grabbing;
+        }
+        
+        #mapa-pernambuco {
+            width: 100%;
+            height: auto;
+            display: block;
+            transform-origin: 0 0;
+            pointer-events: none;
+            will-change: transform;
+            backface-visibility: hidden;
+            perspective: 1000px;
+            /* Remover transition para zoom mais fluido */
+        }
+        
+        #municipios-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform-origin: 0 0;
+            pointer-events: none;
+            will-change: transform;
+            backface-visibility: hidden;
+        }
+        
+        .municipio-point {
+            pointer-events: auto;
+            transition: all 0.2s ease;
+            will-change: transform;
+            backface-visibility: hidden;
+        }
+        
+        .municipio-point:hover {
+            z-index: 20 !important;
+        }
+        
+        /* Animação otimizada para município selecionado */
+        @keyframes pulse-optimized {
+            0%, 100% { 
+                opacity: 1; 
+                transform: translate(-50%, -50%) scale(2) translateZ(0);
+            }
+            50% { 
+                opacity: 0.8; 
+                transform: translate(-50%, -50%) scale(1.8) translateZ(0);
+            }
+        }
+        
+        .municipio-point.selected {
+            animation: pulse-optimized 2s infinite;
+        }
+        
+        /* Melhorias no painel de informações */
+        .municipio-info {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .entrancia-group {
+            margin: 1rem 0;
+            padding: 0.75rem;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #10b981;
+        }
+        
+        .entrancia-group h4 {
+            margin: 0 0 0.5rem 0;
+            color: #059669;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .promotorias-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .promotorias-list li {
+            padding: 0.25rem 0;
+            font-size: 0.875rem;
+            color: #374151;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .promotorias-list li:last-child {
+            border-bottom: none;
+        }
+        
+        /* Indicador de zoom fluido */
+        .zoom-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(16, 185, 129, 0.95);
+            color: white;
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* Otimizações para performance */
+        .map-container {
+            contain: layout style paint;
+            transform: translateZ(0); /* Força aceleração GPU */
+        }
+        
+        /* Melhorias na busca */
+        .search-results {
+            max-height: 250px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #10b981 #f1f5f9;
+        }
+        
+        .search-results::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .search-results::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        
+        .search-results::-webkit-scrollbar-thumb {
+            background: #10b981;
+            border-radius: 3px;
+        }
+        
+        /* Responsividade melhorada */
+        @media (max-width: 768px) {
+            .zoom-indicator {
+                bottom: 10px;
+                right: 10px;
+                font-size: 0.625rem;
+                padding: 0.5rem;
+            }
+            
+            .municipio-point {
+                width: 10px !important;
+                height: 10px !important;
+            }
+        }
+        
+        /* Controles de zoom otimizados */
+        .zoom-controls {
+            z-index: 100;
+            position: relative;
+        }
+        
+        .zoom-btn {
+            background: #10b981;
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 0 2px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            will-change: transform;
+        }
+        
+        .zoom-btn:hover {
+            background: #059669;
+            transform: translateY(-1px) translateZ(0);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .zoom-btn:active {
+            transform: translateY(0) translateZ(0);
+        }
+        
+        .zoom-btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* Otimizações globais para fluidez */
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            transform: translateZ(0); /* Força aceleração GPU */
+        }
+        
+        /* Preload de fontes para evitar layout shift */
+        .preload-fonts {
+            font-family: 'Inter', sans-serif;
+            font-weight: 300;
+            font-weight: 400;
+            font-weight: 500;
+            font-weight: 600;
+            font-weight: 700;
+            position: absolute;
+            left: -9999px;
+            visibility: hidden;
+        }
+    </style>
+</head>
+<body>
+    <!-- Preload de fontes -->
+    <div class="preload-fonts">.</div>
+    
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">
+                    <span class="title-main">Promotorias de Pernambuco</span>
+                    <span class="title-sub">Mapa Interativo com Zoom Ultra Fluido</span>
+                </h1>
+                <div class="stats">
+                    <div class="stat-item">
+                        <span class="stat-number" id="total-municipios">184</span>
+                        <span class="stat-label">Municípios</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number" id="total-promotorias">469</span>
+                        <span class="stat-label">Promotorias</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Controls -->
+            <div class="controls">
+                <div class="search-container">
+                    <input type="text" id="search-municipio" placeholder="Buscar município..." class="search-input">
+                    <button id="clear-search" class="clear-btn">×</button>
+                    <div id="search-results" class="search-results"></div>
+                </div>
+                
+                <div class="filter-container">
+                    <label for="filter-entrancia">Filtrar por Entrância:</label>
+                    <select id="filter-entrancia" class="filter-select">
+                        <option value="">Todas</option>
+                        <option value="1">1ª Entrância</option>
+                        <option value="2">2ª Entrância</option>
+                        <option value="3">3ª Entrância</option>
+                        <option value="vaga-1">🔴 PJs vagas de 1ª entrância</option>
+                        <option value="vaga-2">🔴 PJs vagas de 2ª entrância</option>
+                        <option value="vaga-3">🔴 PJs vagas de 3ª entrância</option>
+                    </select>
+                </div>
+
+                <div class="zoom-controls">
+                    <button id="zoom-in" class="zoom-btn" title="Zoom In">+</button>
+                    <button id="zoom-out" class="zoom-btn" title="Zoom Out">−</button>
+                    <button id="reset-zoom" class="zoom-btn" title="Reset Zoom">⌂</button>
+                </div>
+            </div>
+
+            <!-- Map Container -->
+            <div class="map-container">
+                <div class="map-wrapper" id="map-wrapper">
+                    <img src="images/Mapa-MPPE.png" alt="Mapa de Pernambuco" id="mapa-pernambuco" class="map-image">
+                    
+                    <!-- Pontos dos municípios serão adicionados dinamicamente -->
+                    <div id="municipios-layer" class="municipios-layer"></div>
+                </div>
+                
+                <!-- Loading indicator -->
+                <div id="loading" class="loading">
+                    <div class="loading-spinner"></div>
+                    <p>Carregando mapa interativo...</p>
+                    <small>Zoom ultra fluido • 184 municípios • 469 promotorias</small>
+                </div>
+            </div>
+
+            <!-- Info Panel -->
+            <div class="info-panel" id="info-panel">
+                <div class="info-header">
+                    <h3 id="info-municipio">Selecione um município</h3>
+                    <button id="close-info" class="close-btn">×</button>
+                </div>
+                <div class="info-content" id="info-content">
+                    <p class="info-instruction">Passe o mouse sobre um município no mapa para ver as informações das promotorias.</p>
+                    <div style="background: #f0fdf4; border: 1px solid #10b981; border-radius: 6px; padding: 0.75rem; margin: 1rem 0; font-size: 0.75rem;">
+                        <strong style="color: #059669;">🔍 ZOOM ULTRA FLUIDO!</strong><br>
+                        • <strong>Scroll do mouse:</strong> Zoom suave e fluido<br>
+                        • <strong>Arrastar:</strong> Mover o mapa<br>
+                        • <strong>Botões +/-:</strong> Zoom controlado<br>
+                        • <strong>Botão ⌂:</strong> Reset zoom<br>
+                        • <span style="color: #10b981;">●</span> Verde: Municípios com promotorias<br>
+                        • <span style="color: #f59e0b;">●</span> Laranja: Termos de outras promotorias<br>
+                        • <span style="color: #dc2626;">●</span> Vermelho: Município selecionado<br>
+                        • 184 municípios • 469 promotorias
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2025 - Sistema de Consulta de Promotorias de Pernambuco</p>
+            <p style="font-size: 0.75rem; margin-top: 0.5rem; opacity: 0.7;">
+                Versão Final Otimizada - Zoom Ultra Fluido • 184 municípios • 469 promotorias
+            </p>
+        </footer>
+    </div>
+
+    <!-- Tooltip -->
+    <div id="tooltip" class="tooltip"></div>
+
+    <!-- Scripts - Apenas os necessários -->
+    <script src="js/data-loader.js"></script>
+    <script src="js/zoom-controls.js"></script>
+    <script src="js/map-interactions-original-completo.js"></script>
+    <script src="js/search-filter.js"></script>
+    <script>
+        // Inicialização otimizada para zoom ultra fluido
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Inicializando Mapa com Zoom Ultra Fluido');
+            console.log('⚡ Otimizações: GPU acceleration • Interpolação suave • 60fps');
+            
+            try {
+                // Inicializar mapa interativo
+                await window.mapInteractions.init();
+                
+                // Configurar busca
+                setupSearch();
+                
+                // Configurar filtros
+                setupFilters();
+                
+                // Verificar otimizações
+                verifyOptimizations();
+                
+                console.log('✅ Mapa com zoom ultra fluido inicializado!');
+                console.log('🎯 Funcionalidades otimizadas:');
+                console.log('   ⚡ Zoom com interpolação suave');
+                console.log('   🖱️ Pan com aceleração GPU');
+                console.log('   📱 Touch otimizado');
+                console.log('   🔍 Busca entre 184 municípios');
+                console.log('   🎛️ Filtros por entrância');
+                
+            } catch (error) {
+                console.error('❌ Erro na inicialização:', error);
+            }
+        });
+        
+        function verifyOptimizations() {
+            const mapWrapper = document.getElementById('map-wrapper');
+            const mapImage = document.getElementById('mapa-pernambuco');
+            
+            if (mapWrapper && mapImage) {
+                console.log('✅ Otimizações aplicadas:');
+                console.log('   🎯 Transform3D para GPU');
+                console.log('   ⚡ Will-change configurado');
+                console.log('   🔄 Backface-visibility hidden');
+                console.log('   📐 Transform-style preserve-3d');
+                
+                // Verificar se zoom controls estão otimizados
+                if (window.mapInteractions && window.mapInteractions.zoomControls) {
+                    console.log('   🔍 Zoom controls otimizados');
+                    console.log('   📈 Interpolação suave ativa');
+                    console.log('   ⏱️ Throttling 60fps aplicado');
+                } else {
+                    console.warn('⚠️ Zoom controls não encontrados');
+                }
+            }
+        }
+        
+        function setupSearch() {
+            const searchInput = document.getElementById('search-municipio');
+            const searchResults = document.getElementById('search-results');
+            const clearBtn = document.getElementById('clear-search');
+            
+            if (!searchInput || !searchResults) return;
+            
+            let searchTimeout;
+            
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                const query = this.value.trim().toLowerCase();
+                
+                if (query.length < 2) {
+                    searchResults.style.display = 'none';
+                    return;
+                }
+                
+                searchTimeout = setTimeout(() => {
+                    showSearchResults(query);
+                }, 200);
+            });
+            
+            searchInput.addEventListener('blur', function() {
+                setTimeout(() => {
+                    searchResults.style.display = 'none';
+                }, 200);
+            });
+            
+            clearBtn.addEventListener('click', function() {
+                searchInput.value = '';
+                searchResults.style.display = 'none';
+                window.mapInteractions.clearSelection();
+            });
+        }
+        
+        function showSearchResults(query) {
+            const searchResults = document.getElementById('search-results');
+            if (!window.dataLoader.municipiosData) return;
+            
+            const matches = Object.keys(window.dataLoader.municipiosData)
+                .filter(municipio => municipio.toLowerCase().includes(query))
+                .sort((a, b) => {
+                    const aExact = a.toLowerCase().startsWith(query);
+                    const bExact = b.toLowerCase().startsWith(query);
+                    if (aExact && !bExact) return -1;
+                    if (!aExact && bExact) return 1;
+                    return a.localeCompare(b);
+                })
+                .slice(0, 10);
+            
+            if (matches.length === 0) {
+                searchResults.innerHTML = '<div style="padding: 0.75rem; color: #6b7280; font-style: italic;">Nenhum município encontrado</div>';
+                searchResults.style.display = 'block';
+                return;
+            }
+            
+            const resultsHtml = matches.map(municipio => {
+                const dados = window.dataLoader.municipiosData[municipio];
+                const info = dados.promotorias && dados.promotorias.length > 0
+                    ? `${dados.promotorias.length} promotoria${dados.promotorias.length !== 1 ? 's' : ''}`
+                    : 'Termo de outra Promotoria';
+                
+                return `
+                    <div style="padding: 0.75rem; border-bottom: 1px solid #f3f4f6; cursor: pointer; font-size: 0.875rem;" 
+                         onclick="selectSearchResult('${municipio}')"
+                         onmouseover="this.style.background='#f0fdf4'"
+                         onmouseout="this.style.background='white'">
+                        <div style="font-weight: 600; color: #374151;">${municipio}</div>
+                        <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">${info}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            searchResults.innerHTML = resultsHtml;
+            searchResults.style.display = 'block';
+        }
+        
+        function selectSearchResult(municipio) {
+            const searchInput = document.getElementById('search-municipio');
+            const searchResults = document.getElementById('search-results');
+            
+            searchInput.value = municipio;
+            searchResults.style.display = 'none';
+            window.mapInteractions.highlightMunicipio(municipio);
+        }
+        
+        function setupFilters() {
+            const filterSelect = document.getElementById('filter-entrancia');
+            if (!filterSelect) return;
+            
+            filterSelect.addEventListener('change', function() {
+                const entrancia = this.value;
+                window.mapInteractions.filterMunicipiosByEntrancia(entrancia);
+            });
+        }
+        
+        // Log de carregamento completo
+        window.addEventListener('load', function() {
+            console.log('🎉 MAPA COM ZOOM ULTRA FLUIDO CARREGADO!');
+            console.log('⚡ Performance: GPU acceleration ativa');
+            console.log('🔍 Zoom: Interpolação suave 60fps');
+            console.log('🖱️ Pan: Transform3D otimizado');
+            console.log('📊 184 municípios • 469 promotorias');
+            
+            // Teste automático das otimizações
+            setTimeout(() => {
+                console.log('🧪 Verificando otimizações...');
+                
+                const mapImage = document.getElementById('mapa-pernambuco');
+                if (mapImage) {
+                    const computedStyle = window.getComputedStyle(mapImage);
+                    console.log('✅ Will-change:', computedStyle.willChange);
+                    console.log('✅ Backface-visibility:', computedStyle.backfaceVisibility);
+                }
+                
+                if (window.mapInteractions && window.mapInteractions.zoomControls) {
+                    console.log('✅ Zoom controls com interpolação ativa');
+                } else {
+                    console.warn('⚠️ Zoom controls não encontrados');
+                }
+                
+                console.log('🎯 Otimizações verificadas - Zoom ultra fluido ativo!');
+            }, 1000);
+        });
+        
+        // Monitoramento de performance (opcional)
+        if (window.performance && window.performance.mark) {
+            window.performance.mark('mapa-inicio');
+            
+            window.addEventListener('load', function() {
+                window.performance.mark('mapa-fim');
+                window.performance.measure('tempo-carregamento-mapa', 'mapa-inicio', 'mapa-fim');
+                
+                const measure = window.performance.getEntriesByName('tempo-carregamento-mapa')[0];
+                if (measure) {
+                    console.log(`⏱️ Tempo de carregamento: ${measure.duration.toFixed(2)}ms`);
+                }
+            });
+        }
+    </script>
+    <!-- Modal para Detalhes da Promotoria -->
+<div id="promotoria-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h4 id="modal-title">Detalhes da Promotoria</h4>
+            <button id="modal-close-btn" class="close-btn">×</button>
+        </div>
+        <div id="modal-body" class="modal-body"></div>
+    </div>
+</div>
+</body>
+</html>

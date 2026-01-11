@@ -1,0 +1,23 @@
+{
+  "name": "mppe-mapa-interativo-typescript",
+  "version": "2.0.0",
+  "description": "Mapa Interativo das Promotorias de Pernambuco - Versão TypeScript",
+  "main": "js/data-loader.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "dev": "tsc && python3 -m http.server 8083"
+  },
+  "keywords": [
+    "mppe",
+    "promotorias",
+    "pernambuco",
+    "mapa",
+    "typescript"
+  ],
+  "author": "MPPE",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

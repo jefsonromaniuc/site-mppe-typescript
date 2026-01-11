@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2015",
+    "module": "None",
+    "lib": ["ES2017", "DOM", "DOM.Iterable"],
+    "rootDir": "./src",
+    "outDir": "./js",
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "declaration": false,
+    "sourceMap": false,
+    "removeComments": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
