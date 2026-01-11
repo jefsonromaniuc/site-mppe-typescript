@@ -1,2 +1,2 @@
 # site-mppe-typescript
-Site com mapa das prmotorias escrito em TypeScript
+Site com mapa das promotorias escrito em TypeScript
